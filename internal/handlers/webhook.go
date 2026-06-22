@@ -67,6 +67,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"alerts", len(payload.Alerts),
 		"remote", r.RemoteAddr,
 	)
+	slog.Debug("grafana payload", "body", string(body))
 
 	if w.telegram != nil {
 		if err := w.telegram.Send(templates.Telegram(payload)); err != nil {

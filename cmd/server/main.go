@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/niklucky/signal/internal/config"
 	"github.com/niklucky/signal/internal/handlers"
@@ -13,6 +14,8 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to YAML config")
 	flag.Parse()
+
+	setupLogging()
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -31,4 +34,21 @@ func main() {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func setupLogging() {
+	level := slog.LevelInfo
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	slog.SetDefault(slog.New(handler))
 }

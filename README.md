@@ -20,7 +20,7 @@ via Telegram and Matrix.
 3. Point Grafana webhook notifications to:
 
    ```
-   http://<host>:8080/webhook
+   http://<host>:8080/webhooks/grafana
    ```
 
 ## Configuration
@@ -67,3 +67,13 @@ Silence alert
 ```
 
 When `status` is `resolved`, the emoji becomes ✅.
+
+## Debugging
+
+Set `LOG_LEVEL=debug` to print the full Grafana JSON payload to the console:
+
+```bash
+LOG_LEVEL=debug go run ./cmd/server -config config.yaml
+```
+
+Supported levels: `debug`, `info`, `warn`, `error`. Default is `info`.

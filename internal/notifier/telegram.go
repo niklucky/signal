@@ -21,7 +21,11 @@ func NewTelegram(cfg config.TelegramConfig) *Telegram {
 
 // Send delivers the provided text to the configured Telegram chat.
 func (t *Telegram) Send(text string) error {
-	apiURL := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.cfg.BotToken)
+	url := "api.telegram.org"
+	if t.cfg.ProxyURL != "" {
+		url = t.cfg.ProxyURL
+	}
+	apiURL := fmt.Sprintf("https://%s/bot%s/sendMessage", url, t.cfg.BotToken)
 
 	payload := map[string]string{
 		"chat_id":    t.cfg.ChatID,
@@ -66,4 +70,3 @@ func Escape(v string) string {
 	}
 	return string(result)
 }
-

@@ -22,6 +22,7 @@ type ServerConfig struct {
 // TelegramConfig holds Telegram bot credentials.
 type TelegramConfig struct {
 	Enabled  bool   `yaml:"enabled"`
+	ProxyURL string `yaml:"proxy_url"`
 	BotToken string `yaml:"bot_token"`
 	ChatID   string `yaml:"chat_id"`
 }

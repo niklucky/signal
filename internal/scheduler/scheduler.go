@@ -101,12 +101,85 @@ func (s *Scheduler) check(host models.Host) {
 		)
 	}
 
+	s.handleResult(host, status)
+}
+
+func (s *Scheduler) handleResult(host models.Host, status int) {
+	s.mu.Lock()
+	state := s.states[host.Name]
+	if state == nil {
+		state = &hostState{}
+		s.states[host.Name] = state
+	}
+
 	if status == http.StatusOK {
-		s.clear(host)
+		if state.failing {
+			state.failing = false
+			state.lastAlert = time.Time{}
+			s.mu.Unlock()
+			s.sendResolved(host)
+			return
+		}
+		s.mu.Unlock()
 		return
 	}
 
-	s.alert(host, status)
+	shouldSend := !state.failing || state.lastAlert.IsZero()
+	if host.ResendInterval > 0 && !state.lastAlert.IsZero() {
+		if time.Since(state.lastAlert) >= time.Duration(host.ResendInterval)*time.Second {
+			shouldSend = true
+		}
+	}
+
+	state.failing = true
+	if shouldSend {
+		state.lastAlert = time.Now()
+	}
+	s.mu.Unlock()
+
+	if shouldSend {
+		s.sendAlert(host, status)
+	}
+}
+
+func (s *Scheduler) sendResolved(host models.Host) {
+	message := fmt.Sprintf("✅ Host recovered: %s\n\n%s %s is back to OK", host.Name, host.Method, host.URL)
+
+	slog.Info("host recovered",
+		"host", host.Name,
+		"url", host.URL,
+	)
+
+	s.send(host, message)
+}
+
+func (s *Scheduler) sendAlert(host models.Host, status int) {
+	message := fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s returned status %d", host.Name, host.Method, host.URL, status)
+	if status == 0 {
+		message = fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s is unreachable", host.Name, host.Method, host.URL)
+	}
+
+	slog.Warn("host check failed",
+		"host", host.Name,
+		"url", host.URL,
+		"status", status,
+	)
+
+	s.send(host, message)
+}
+
+func (s *Scheduler) send(host models.Host, message string) {
+	if s.telegram != nil {
+		if err := s.telegram.Send(message); err != nil {
+			slog.Error("failed to send telegram message", "host", host.Name, "error", err)
+		}
+	}
+
+	if s.matrix != nil {
+		if err := s.matrix.Send(message); err != nil {
+			slog.Error("failed to send matrix message", "host", host.Name, "error", err)
+		}
+	}
 }
 
 func (s *Scheduler) doRequest(host models.Host) (int, error) {
@@ -138,63 +211,4 @@ func (s *Scheduler) doRequest(host models.Host) (int, error) {
 	defer resp.Body.Close()
 
 	return resp.StatusCode, nil
-}
-
-func (s *Scheduler) alert(host models.Host, status int) {
-	s.mu.Lock()
-	state := s.states[host.Name]
-	if state == nil {
-		state = &hostState{}
-		s.states[host.Name] = state
-	}
-
-	shouldSend := !state.failing || state.lastAlert.IsZero()
-	if host.ResendInterval > 0 && !state.lastAlert.IsZero() {
-		if time.Since(state.lastAlert) >= time.Duration(host.ResendInterval)*time.Second {
-			shouldSend = true
-		}
-	}
-
-	state.failing = true
-	if shouldSend {
-		state.lastAlert = time.Now()
-	}
-	s.mu.Unlock()
-
-	if !shouldSend {
-		return
-	}
-
-	message := fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s returned status %d", host.Name, host.Method, host.URL, status)
-	if status == 0 {
-		message = fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s is unreachable", host.Name, host.Method, host.URL)
-	}
-
-	slog.Warn("host check failed",
-		"host", host.Name,
-		"url", host.URL,
-		"status", status,
-	)
-
-	if s.telegram != nil {
-		if err := s.telegram.Send(message); err != nil {
-			slog.Error("failed to send telegram alert", "host", host.Name, "error", err)
-		}
-	}
-
-	if s.matrix != nil {
-		if err := s.matrix.Send(message); err != nil {
-			slog.Error("failed to send matrix alert", "host", host.Name, "error", err)
-		}
-	}
-}
-
-func (s *Scheduler) clear(host models.Host) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	state := s.states[host.Name]
-	if state != nil {
-		state.failing = false
-	}
 }

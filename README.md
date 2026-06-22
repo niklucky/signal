@@ -82,7 +82,7 @@ Host fields:
 | `interval`        | Seconds between checks                                 |
 | `resend_interval` | Seconds before re-sending an alert while still failing |
 
-When a check returns a non-`200` status or fails to connect, Signal sends an alert via Telegram and/or Matrix. The alert is re-sent only after `resend_interval` while the host keeps failing.
+When a check returns a non-`200` status or fails to connect, Signal sends an alert via Telegram and/or Matrix. The alert is re-sent only after `resend_interval` while the host keeps failing. Once the host returns `200`, a recovery message is sent.
 
 On each incoming Grafana webhook:
 

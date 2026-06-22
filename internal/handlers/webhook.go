@@ -20,21 +20,11 @@ type Webhook struct {
 }
 
 // NewWebhook creates a webhook handler.
-func NewWebhook(cfg *config.Config) *Webhook {
-	var tg *notifier.Telegram
-	if cfg.Telegram.Enabled {
-		tg = notifier.NewTelegram(cfg.Telegram)
-	}
-
-	var mx *notifier.Matrix
-	if cfg.Matrix.Enabled {
-		mx = notifier.NewMatrix(cfg.Matrix)
-	}
-
+func NewWebhook(cfg *config.Config, telegram *notifier.Telegram, matrix *notifier.Matrix) *Webhook {
 	return &Webhook{
 		cfg:      cfg,
-		telegram: tg,
-		matrix:   mx,
+		telegram: telegram,
+		matrix:   matrix,
 	}
 }
 

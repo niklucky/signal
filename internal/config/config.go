@@ -9,14 +9,20 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Telegram TelegramConfig `yaml:"telegram"`
-	Matrix   MatrixConfig   `yaml:"matrix"`
+	Server    ServerConfig    `yaml:"server"`
+	Telegram  TelegramConfig  `yaml:"telegram"`
+	Matrix    MatrixConfig    `yaml:"matrix"`
+	Scheduler SchedulerConfig `yaml:"scheduler"`
 }
 
 // ServerConfig holds HTTP server settings.
 type ServerConfig struct {
 	Address string `yaml:"address"`
+}
+
+// SchedulerConfig holds scheduler settings.
+type SchedulerConfig struct {
+	HostsFile string `yaml:"hosts_file"`
 }
 
 // TelegramConfig holds Telegram bot credentials.
@@ -55,5 +61,8 @@ func Load(path string) (*Config, error) {
 func (c *Config) setDefaults() {
 	if c.Server.Address == "" {
 		c.Server.Address = ":8080"
+	}
+	if c.Scheduler.HostsFile == "" {
+		c.Scheduler.HostsFile = "hosts.yml"
 	}
 }

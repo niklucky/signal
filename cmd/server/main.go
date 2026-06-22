@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/niklucky/signal/internal/config"
 	"github.com/niklucky/signal/internal/handlers"
+	"github.com/niklucky/signal/internal/notifier"
+	"github.com/niklucky/signal/internal/scheduler"
 )
 
 func main() {
@@ -23,7 +26,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	http.Handle("/webhooks/grafana", handlers.NewWebhook(cfg))
+	var telegram *notifier.Telegram
+	if cfg.Telegram.Enabled {
+		telegram = notifier.NewTelegram(cfg.Telegram)
+	}
+
+	var matrix *notifier.Matrix
+	if cfg.Matrix.Enabled {
+		matrix = notifier.NewMatrix(cfg.Matrix)
+	}
+
+	http.Handle("/webhooks/grafana", handlers.NewWebhook(cfg, telegram, matrix))
+
+	hosts, err := scheduler.LoadHosts(cfg.Scheduler.HostsFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			slog.Info("hosts file not found, scheduler disabled", "file", cfg.Scheduler.HostsFile)
+		} else {
+			slog.Error("failed to load hosts", "error", err)
+			os.Exit(1)
+		}
+	}
+
+	if len(hosts) > 0 {
+		slog.Info("starting scheduler", "hosts", len(hosts), "file", cfg.Scheduler.HostsFile)
+		scheduler.New(hosts, telegram, matrix).Start()
+	}
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))

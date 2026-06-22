@@ -1,0 +1,19 @@
+hosts:
+  - name: "example-api"
+    method: "GET"
+    url: "https://example.com/health"
+    headers:
+      Authorization: "Bearer token"
+    timeout: 10
+    interval: 60
+    resend_interval: 300
+
+  - name: "example-login"
+    method: "POST"
+    url: "https://example.com/api/login"
+    headers:
+      Content-Type: "application/json"
+    body: '{"username":"test","password":"test"}'
+    timeout: 15
+    interval: 120
+    resend_interval: 600

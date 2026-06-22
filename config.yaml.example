@@ -1,6 +1,9 @@
 server:
   address: ":8080"
 
+scheduler:
+  hosts_file: "hosts.yml"
+
 telegram:
   enabled: true
   bot_token: "YOUR_TELEGRAM_BOT_TOKEN"

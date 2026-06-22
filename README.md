@@ -25,10 +25,11 @@ via Telegram and Matrix.
 
 ## Configuration
 
-| Section    | Field          | Description                         |
-|------------|----------------|-------------------------------------|
-| `server`   | `address`      | HTTP listen address                 |
-| `telegram` | `enabled`      | Enable Telegram relay               |
+| Section     | Field          | Description                         |
+|-------------|----------------|-------------------------------------|
+| `server`    | `address`      | HTTP listen address                 |
+| `scheduler` | `hosts_file`   | Path to the hosts YAML file         |
+| `telegram`  | `enabled`      | Enable Telegram relay               |
 | `telegram` | `bot_token`    | Telegram bot token                  |
 | `telegram` | `chat_id`      | Target Telegram chat ID             |
 | `telegram` | `proxy_url`    | Optional Telegram API proxy host    |
@@ -39,6 +40,49 @@ via Telegram and Matrix.
 | `matrix`   | `room_id`      | Target room ID                      |
 
 ## What it does
+
+## Host scheduler
+
+Signal can also periodically check HTTP endpoints configured in `hosts.yml` (path is set via `scheduler.hosts_file`, default: `hosts.yml`).
+
+Example `hosts.yml`:
+
+```yaml
+hosts:
+  - name: "example-api"
+    method: "GET"
+    url: "https://example.com/health"
+    headers:
+      Authorization: "Bearer token"
+    timeout: 10
+    interval: 60
+    resend_interval: 300
+
+  - name: "example-login"
+    method: "POST"
+    url: "https://example.com/api/login"
+    headers:
+      Content-Type: "application/json"
+    body: '{"username":"test","password":"test"}'
+    timeout: 15
+    interval: 120
+    resend_interval: 600
+```
+
+Host fields:
+
+| Field             | Description                                            |
+|-------------------|--------------------------------------------------------|
+| `name`            | Display name for logs and alerts                       |
+| `method`          | HTTP method; defaults to `GET`                         |
+| `url`             | Full URL to request                                    |
+| `headers`         | Optional request headers                               |
+| `body`            | Optional JSON request body                             |
+| `timeout`         | Request timeout in seconds; defaults to `10`           |
+| `interval`        | Seconds between checks                                 |
+| `resend_interval` | Seconds before re-sending an alert while still failing |
+
+When a check returns a non-`200` status or fails to connect, Signal sends an alert via Telegram and/or Matrix. The alert is re-sent only after `resend_interval` while the host keeps failing.
 
 On each incoming Grafana webhook:
 

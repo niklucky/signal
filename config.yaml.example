@@ -5,6 +5,7 @@ telegram:
   enabled: true
   bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
   chat_id: "YOUR_CHAT_ID"
+  # proxy_url: "api.telegram.org"
 
 matrix:
   enabled: false

@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 
 	"github.com/niklucky/signal/internal/config"
+	"github.com/niklucky/signal/internal/models"
 	"github.com/niklucky/signal/internal/notifier"
+	"github.com/niklucky/signal/internal/templates"
 )
 
 // Webhook handles incoming Grafana webhook payloads.
@@ -37,7 +38,7 @@ func NewWebhook(cfg *config.Config) *Webhook {
 	}
 }
 
-// ServeHTTP accepts a Grafana webhook, dumps the full request, and relays it.
+// ServeHTTP accepts a Grafana webhook, formats it, and relays it.
 func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -47,16 +48,28 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	message := buildMessage(r, body)
+	var payload models.GrafanaWebhook
+	if err := json.Unmarshal(body, &payload); err != nil {
+		slog.Error("failed to parse grafana payload", "error", err)
+		http.Error(rw, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if len(payload.Alerts) == 0 {
+		slog.Warn("grafana payload contains no alerts")
+		http.Error(rw, "no alerts in payload", http.StatusBadRequest)
+		return
+	}
 
 	slog.Info("received grafana webhook",
-		"method", r.Method,
-		"path", r.URL.Path,
+		"status", payload.Status,
+		"title", payload.Title,
+		"alerts", len(payload.Alerts),
 		"remote", r.RemoteAddr,
 	)
 
 	if w.telegram != nil {
-		if err := w.telegram.Send(message); err != nil {
+		if err := w.telegram.Send(templates.Telegram(payload)); err != nil {
 			slog.Error("failed to send telegram message", "error", err)
 			http.Error(rw, "failed to relay to telegram", http.StatusInternalServerError)
 			return
@@ -64,7 +77,7 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if w.matrix != nil {
-		if err := w.matrix.Send(message); err != nil {
+		if err := w.matrix.Send(templates.Matrix(payload)); err != nil {
 			slog.Error("failed to send matrix message", "error", err)
 			http.Error(rw, "failed to relay to matrix", http.StatusInternalServerError)
 			return
@@ -73,38 +86,4 @@ func (w *Webhook) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte("OK"))
-}
-
-func buildMessage(r *http.Request, body []byte) string {
-	var msg string
-	msg += fmt.Sprintf("<b>Grafana Webhook</b>\n\n")
-	msg += fmt.Sprintf("<b>Method:</b> %s\n", notifier.Escape(r.Method))
-	msg += fmt.Sprintf("<b>Path:</b> %s\n", notifier.Escape(r.URL.Path))
-	msg += fmt.Sprintf("<b>Remote:</b> %s\n\n", notifier.Escape(r.RemoteAddr))
-
-	msg += "<b>Headers:</b>\n"
-	for name, values := range r.Header {
-		for _, v := range values {
-			msg += fmt.Sprintf("  %s: %s\n", notifier.Escape(name), notifier.Escape(v))
-		}
-	}
-
-	msg += "\n<b>Body:</b>\n<pre>"
-	pretty, err := json.MarshalIndent(stripJSON(body), "", "  ")
-	if err != nil {
-		msg += notifier.Escape(string(body))
-	} else {
-		msg += notifier.Escape(string(pretty))
-	}
-	msg += "</pre>"
-
-	return msg
-}
-
-func stripJSON(raw []byte) any {
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return string(raw)
-	}
-	return v
 }

@@ -50,23 +50,3 @@ func (t *Telegram) Send(text string) error {
 
 	return nil
 }
-
-// Escape escapes characters that have special meaning in Telegram HTML mode.
-func Escape(v string) string {
-	replacer := map[string]string{
-		"&": "&amp;",
-		"<": "&lt;",
-		">": "&gt;",
-	}
-	out := []rune(v)
-	var result []rune
-	for _, r := range out {
-		s := string(r)
-		if rep, ok := replacer[s]; ok {
-			result = append(result, []rune(rep)...)
-			continue
-		}
-		result = append(result, r)
-	}
-	return string(result)
-}

@@ -1,0 +1,14 @@
+server:
+  address: ":8080"
+
+telegram:
+  enabled: true
+  bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+  chat_id: "YOUR_CHAT_ID"
+
+matrix:
+  enabled: false
+  homeserver: "https://matrix.org"
+  user_id: "@yourbot:matrix.org"
+  access_token: "YOUR_ACCESS_TOKEN"
+  room_id: "!yourroom:matrix.org"

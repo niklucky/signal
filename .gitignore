@@ -1,0 +1,23 @@
+# Binaries
+/server
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build artifacts
+/bin/
+/dist/
+
+# Config with secrets
+config.yaml
+!config.yaml.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store

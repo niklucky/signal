@@ -92,7 +92,7 @@ func (s *Scheduler) run(host models.Host) {
 }
 
 func (s *Scheduler) check(host models.Host) {
-	status, err := s.doRequest(host)
+	status, body, err := s.doRequest(host)
 	if err != nil {
 		slog.Error("host check request failed",
 			"host", host.Name,
@@ -101,10 +101,10 @@ func (s *Scheduler) check(host models.Host) {
 		)
 	}
 
-	s.handleResult(host, status)
+	s.handleResult(host, status, body)
 }
 
-func (s *Scheduler) handleResult(host models.Host, status int) {
+func (s *Scheduler) handleResult(host models.Host, status int, body string) {
 	s.mu.Lock()
 	state := s.states[host.Name]
 	if state == nil {
@@ -138,7 +138,7 @@ func (s *Scheduler) handleResult(host models.Host, status int) {
 	s.mu.Unlock()
 
 	if shouldSend {
-		s.sendAlert(host, status)
+		s.sendAlert(host, status, body)
 	}
 }
 
@@ -153,10 +153,12 @@ func (s *Scheduler) sendResolved(host models.Host) {
 	s.send(host, message)
 }
 
-func (s *Scheduler) sendAlert(host models.Host, status int) {
+func (s *Scheduler) sendAlert(host models.Host, status int, body string) {
 	message := fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s returned status %d", host.Name, host.Method, host.URL, status)
 	if status == 0 {
 		message = fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s is unreachable", host.Name, host.Method, host.URL)
+	} else if body != "" {
+		message += fmt.Sprintf("\n\nResponse body:\n%s", truncate(body, 1000))
 	}
 
 	slog.Warn("host check failed",
@@ -182,7 +184,7 @@ func (s *Scheduler) send(host models.Host, message string) {
 	}
 }
 
-func (s *Scheduler) doRequest(host models.Host) (int, error) {
+func (s *Scheduler) doRequest(host models.Host) (int, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(host.Timeout)*time.Second)
 	defer cancel()
 
@@ -193,7 +195,7 @@ func (s *Scheduler) doRequest(host models.Host) (int, error) {
 
 	req, err := http.NewRequestWithContext(ctx, host.Method, host.URL, body)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
 	for key, value := range host.Headers {
@@ -206,9 +208,21 @@ func (s *Scheduler) doRequest(host models.Host) (int, error) {
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode, nil
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp.StatusCode, "", err
+	}
+
+	return resp.StatusCode, string(respBody), nil
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "\n..."
 }

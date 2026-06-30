@@ -101,10 +101,10 @@ func (s *Scheduler) check(host models.Host) {
 		)
 	}
 
-	s.handleResult(host, status, body)
+	s.handleResult(host, status, body, err)
 }
 
-func (s *Scheduler) handleResult(host models.Host, status int, body string) {
+func (s *Scheduler) handleResult(host models.Host, status int, body string, err error) {
 	s.mu.Lock()
 	state := s.states[host.Name]
 	if state == nil {
@@ -138,7 +138,7 @@ func (s *Scheduler) handleResult(host models.Host, status int, body string) {
 	s.mu.Unlock()
 
 	if shouldSend {
-		s.sendAlert(host, status, body)
+		s.sendAlert(host, status, body, err)
 	}
 }
 
@@ -153,11 +153,15 @@ func (s *Scheduler) sendResolved(host models.Host) {
 	s.send(host, message)
 }
 
-func (s *Scheduler) sendAlert(host models.Host, status int, body string) {
-	message := fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s returned status %d", host.Name, host.Method, host.URL, status)
-	if status == 0 {
-		message = fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s is unreachable", host.Name, host.Method, host.URL)
-	} else if body != "" {
+func (s *Scheduler) sendAlert(host models.Host, status int, body string, err error) {
+	message := fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s", host.Name, host.Method, host.URL)
+	if status != 0 {
+		message += fmt.Sprintf("\nStatus: %d", status)
+	}
+	if err != nil {
+		message += fmt.Sprintf("\nError: %s", err.Error())
+	}
+	if body != "" {
 		message += fmt.Sprintf("\n\nResponse body:\n%s", truncate(body, 1000))
 	}
 
@@ -165,6 +169,7 @@ func (s *Scheduler) sendAlert(host models.Host, status int, body string) {
 		"host", host.Name,
 		"url", host.URL,
 		"status", status,
+		"error", err,
 	)
 
 	s.send(host, message)

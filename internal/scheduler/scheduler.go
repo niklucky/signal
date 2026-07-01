@@ -3,6 +3,7 @@ package scheduler
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,8 +28,10 @@ type Scheduler struct {
 }
 
 type hostState struct {
-	failing   bool
-	lastAlert time.Time
+	failing            bool
+	lastAlert          time.Time
+	alertSent          bool
+	lastFailureMessage string
 }
 
 // LoadHosts reads the hosts configuration from the given YAML path.
@@ -116,13 +119,30 @@ func (s *Scheduler) handleResult(host models.Host, status int, body string, err 
 		if state.failing {
 			state.failing = false
 			state.lastAlert = time.Time{}
+			alertSent := state.alertSent
+			lastFailureMessage := state.lastFailureMessage
+			state.alertSent = false
+			state.lastFailureMessage = ""
 			s.mu.Unlock()
-			s.sendResolved(host)
+			if alertSent {
+				s.sendResolved(host)
+			} else if lastFailureMessage != "" {
+				message := fmt.Sprintf("✅ Host recovered: %s\n\n%s %s is back to OK\n\nThe previous failure alert could not be delivered:\n\n%s",
+					host.Name, host.Method, host.URL, lastFailureMessage)
+				s.send(host, message)
+			} else {
+				slog.Info("host recovered without sending notification because previous alert was not delivered",
+					"host", host.Name,
+					"url", host.URL,
+				)
+			}
 			return
 		}
 		s.mu.Unlock()
 		return
 	}
+
+	state.lastFailureMessage = formatFailureMessage(host, status, body, err)
 
 	shouldSend := !state.failing || state.lastAlert.IsZero()
 	if host.ResendInterval > 0 && !state.lastAlert.IsZero() {
@@ -138,7 +158,15 @@ func (s *Scheduler) handleResult(host models.Host, status int, body string, err 
 	s.mu.Unlock()
 
 	if shouldSend {
-		s.sendAlert(host, status, body, err)
+		if err := s.sendAlert(host, status, body, err); err != nil {
+			slog.Error("failed to send host check alert", "host", host.Name, "url", host.URL, "error", err)
+		} else {
+			s.mu.Lock()
+			if st := s.states[host.Name]; st != nil {
+				st.alertSent = true
+			}
+			s.mu.Unlock()
+		}
 	}
 }
 
@@ -153,7 +181,7 @@ func (s *Scheduler) sendResolved(host models.Host) {
 	s.send(host, message)
 }
 
-func (s *Scheduler) sendAlert(host models.Host, status int, body string, err error) {
+func formatFailureMessage(host models.Host, status int, body string, err error) string {
 	message := fmt.Sprintf("🔥 Host check failed: %s\n\n%s %s", host.Name, host.Method, host.URL)
 	if status != 0 {
 		message += fmt.Sprintf("\nStatus: %d", status)
@@ -164,6 +192,11 @@ func (s *Scheduler) sendAlert(host models.Host, status int, body string, err err
 	if body != "" {
 		message += fmt.Sprintf("\n\nResponse body:\n%s", truncate(body, 1000))
 	}
+	return message
+}
+
+func (s *Scheduler) sendAlert(host models.Host, status int, body string, err error) error {
+	message := formatFailureMessage(host, status, body, err)
 
 	slog.Warn("host check failed",
 		"host", host.Name,
@@ -172,21 +205,38 @@ func (s *Scheduler) sendAlert(host models.Host, status int, body string, err err
 		"error", err,
 	)
 
-	s.send(host, message)
+	return s.send(host, message)
 }
 
-func (s *Scheduler) send(host models.Host, message string) {
+func (s *Scheduler) send(host models.Host, message string) error {
+	var errs []error
+	enabled := 0
+
 	if s.telegram != nil {
+		enabled++
 		if err := s.telegram.Send(message); err != nil {
 			slog.Error("failed to send telegram message", "host", host.Name, "error", err)
+			errs = append(errs, err)
 		}
 	}
 
 	if s.matrix != nil {
+		enabled++
 		if err := s.matrix.Send(message); err != nil {
 			slog.Error("failed to send matrix message", "host", host.Name, "error", err)
+			errs = append(errs, err)
 		}
 	}
+
+	if enabled == 0 {
+		return nil
+	}
+
+	if len(errs) == enabled {
+		return errors.Join(errs...)
+	}
+
+	return nil
 }
 
 func (s *Scheduler) doRequest(host models.Host) (int, string, error) {

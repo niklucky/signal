@@ -70,6 +70,11 @@ func LoadHosts(path string) ([]ScheduledHost, error) {
 	return hosts, nil
 }
 
+// maxResponseBytes limits how much of a host's response body is read into
+// memory. This protects the scheduler from malicious endpoints that return
+// huge payloads.
+const maxResponseBytes = 1 << 20 // 1 MiB
+
 // New creates a scheduler from the loaded host list.
 func New(hosts []ScheduledHost, telegram *notifier.Telegram, matrix *notifier.Matrix, store storage.EventStore) *Scheduler {
 	return &Scheduler{
@@ -310,9 +315,18 @@ func (s *Scheduler) doRequest(host models.Host) (int, string, error) {
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	limited := io.LimitReader(resp.Body, maxResponseBytes+1)
+	respBody, err := io.ReadAll(limited)
 	if err != nil {
 		return resp.StatusCode, "", err
+	}
+	if len(respBody) > maxResponseBytes {
+		respBody = append(respBody[:maxResponseBytes], []byte("\n... (response truncated: exceeded 1 MiB limit)")...)
+		slog.Warn("host response body exceeded limit and was truncated",
+			"host", host.Name,
+			"url", host.URL,
+			"limit", maxResponseBytes,
+		)
 	}
 
 	return resp.StatusCode, string(respBody), nil

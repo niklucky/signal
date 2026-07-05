@@ -1,10 +1,31 @@
 package scheduler
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/niklucky/signal/internal/models"
 )
+
+type fakeEventStore struct {
+	lastBodySnippet string
+	lastSuccess     bool
+}
+
+func (f *fakeEventStore) CreateEvent(ctx context.Context, hostID, beaconID int64, responseTimeMs int, responseStatus int, success bool, errorMessage, bodySnippet string) error {
+	f.lastSuccess = success
+	if success {
+		bodySnippet = ""
+	}
+	f.lastBodySnippet = bodySnippet
+	return nil
+}
 
 func TestLoadHosts(t *testing.T) {
 	dir := t.TempDir()
@@ -70,5 +91,87 @@ hosts:
 	}
 	if second.Timeout != 10 {
 		t.Errorf("expected default timeout 10, got %d", second.Timeout)
+	}
+}
+
+func TestRecordEventSkipsBodyOnSuccess(t *testing.T) {
+	store := &fakeEventStore{}
+	s := &Scheduler{
+		store:  store,
+		states: make(map[string]*hostState),
+	}
+
+	host := ScheduledHost{
+		ID: 1,
+		Host: models.Host{
+			Name: "success-host",
+			URL:  "https://example.com",
+		},
+	}
+
+	s.recordEvent(host, http.StatusOK, "this should not be stored", nil, 10*time.Millisecond)
+
+	if !store.lastSuccess {
+		t.Errorf("expected success=true")
+	}
+	if store.lastBodySnippet != "" {
+		t.Errorf("expected empty body snippet for successful event, got %q", store.lastBodySnippet)
+	}
+}
+
+func TestRecordEventKeepsBodyOnFailure(t *testing.T) {
+	store := &fakeEventStore{}
+	s := &Scheduler{
+		store:  store,
+		states: make(map[string]*hostState),
+	}
+
+	host := ScheduledHost{
+		ID: 2,
+		Host: models.Host{
+			Name: "failure-host",
+			URL:  "https://example.com",
+		},
+	}
+
+	s.recordEvent(host, http.StatusInternalServerError, "error body", nil, 10*time.Millisecond)
+
+	if store.lastSuccess {
+		t.Errorf("expected success=false")
+	}
+	if store.lastBodySnippet != "error body" {
+		t.Errorf("expected body snippet to be kept for failure, got %q", store.lastBodySnippet)
+	}
+}
+
+func TestDoRequestLimitsResponseBody(t *testing.T) {
+	largeBody := strings.Repeat("x", maxResponseBytes+100)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(largeBody))
+	}))
+	defer server.Close()
+
+	s := &Scheduler{
+		client: &http.Client{},
+		states: make(map[string]*hostState),
+	}
+
+	status, body, err := s.doRequest(models.Host{
+		Name:    "huge-host",
+		Method:  http.MethodGet,
+		URL:     server.URL,
+		Timeout: 5,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != http.StatusOK {
+		t.Errorf("expected status 200, got %d", status)
+	}
+	if len(body) <= maxResponseBytes {
+		t.Errorf("expected body to be truncated to at most %d bytes, got %d", maxResponseBytes, len(body))
+	}
+	if !strings.HasSuffix(body, "(response truncated: exceeded 1 MiB limit)") {
+		t.Errorf("expected truncation marker in body, got suffix %q", body[len(body)-50:])
 	}
 }

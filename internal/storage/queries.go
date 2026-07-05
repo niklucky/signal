@@ -25,24 +25,29 @@ type User struct {
 
 // Host represents a stored host row.
 type Host struct {
-	ID               int64
-	UserID           int64
-	Name             string
-	Method           string
-	URL              string
-	Headers          map[string]string
-	Body             string
-	TimeoutSec       int
-	IntervalSec      int
+	ID                int64
+	UserID            int64
+	Name              string
+	Method            string
+	URL               string
+	Headers           map[string]string
+	Body              string
+	TimeoutSec        int
+	IntervalSec       int
 	ResendIntervalSec int
-	ExpectedStatus   int
-	Active           bool
-	CreatedAt        string
-	UpdatedAt        string
+	ExpectedStatus    int
+	Active            bool
+	CreatedAt         string
+	UpdatedAt         string
 }
 
-// CreateEvent inserts a new check event into the database.
+// CreateEvent inserts a new check event into the database. Response bodies are
+// only kept for unsuccessful checks; success events always store an empty body
+// snippet to avoid bloating the database.
 func (s *Storage) CreateEvent(ctx context.Context, hostID, beaconID int64, responseTimeMs int, responseStatus int, success bool, errorMessage, bodySnippet string) error {
+	if success {
+		bodySnippet = ""
+	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO events (host_id, beacon_id, ts, response_time_ms, response_status, success, error_message, body_snippet)
 		VALUES ($1, $2, NOW(), $3, $4, $5, $6, $7)

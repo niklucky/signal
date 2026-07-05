@@ -14,14 +14,22 @@ import (
 
 	"github.com/niklucky/signal/internal/models"
 	"github.com/niklucky/signal/internal/notifier"
+	"github.com/niklucky/signal/internal/storage"
 	"gopkg.in/yaml.v3"
 )
 
+// ScheduledHost pairs a host definition with its database identity.
+type ScheduledHost struct {
+	ID   int64
+	Host models.Host
+}
+
 // Scheduler periodically pings configured hosts and sends notifications on failure.
 type Scheduler struct {
-	hosts    []models.Host
+	hosts    []ScheduledHost
 	telegram *notifier.Telegram
 	matrix   *notifier.Matrix
+	store    storage.EventStore
 	client   *http.Client
 	states   map[string]*hostState
 	mu       sync.Mutex
@@ -35,7 +43,7 @@ type hostState struct {
 }
 
 // LoadHosts reads the hosts configuration from the given YAML path.
-func LoadHosts(path string) ([]models.Host, error) {
+func LoadHosts(path string) ([]ScheduledHost, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read hosts file: %w", err)
@@ -55,15 +63,20 @@ func LoadHosts(path string) ([]models.Host, error) {
 		}
 	}
 
-	return file.Hosts, nil
+	hosts := make([]ScheduledHost, len(file.Hosts))
+	for i, h := range file.Hosts {
+		hosts[i] = ScheduledHost{Host: h}
+	}
+	return hosts, nil
 }
 
 // New creates a scheduler from the loaded host list.
-func New(hosts []models.Host, telegram *notifier.Telegram, matrix *notifier.Matrix) *Scheduler {
+func New(hosts []ScheduledHost, telegram *notifier.Telegram, matrix *notifier.Matrix, store storage.EventStore) *Scheduler {
 	return &Scheduler{
 		hosts:    hosts,
 		telegram: telegram,
 		matrix:   matrix,
+		store:    store,
 		client:   &http.Client{},
 		states:   make(map[string]*hostState),
 	}
@@ -72,8 +85,8 @@ func New(hosts []models.Host, telegram *notifier.Telegram, matrix *notifier.Matr
 // Start begins the background checks. It returns immediately.
 func (s *Scheduler) Start() {
 	for _, host := range s.hosts {
-		if host.Interval <= 0 {
-			slog.Warn("skipping host with invalid interval", "host", host.Name, "interval", host.Interval)
+		if host.Host.Interval <= 0 {
+			slog.Warn("skipping host with invalid interval", "host", host.Host.Name, "interval", host.Host.Interval)
 			continue
 		}
 
@@ -82,8 +95,8 @@ func (s *Scheduler) Start() {
 	}
 }
 
-func (s *Scheduler) run(host models.Host) {
-	ticker := time.NewTicker(time.Duration(host.Interval) * time.Second)
+func (s *Scheduler) run(host ScheduledHost) {
+	ticker := time.NewTicker(time.Duration(host.Host.Interval) * time.Second)
 	defer ticker.Stop()
 
 	// Run the first check immediately.
@@ -94,17 +107,47 @@ func (s *Scheduler) run(host models.Host) {
 	}
 }
 
-func (s *Scheduler) check(host models.Host) {
-	status, body, err := s.doRequest(host)
+func (s *Scheduler) check(host ScheduledHost) {
+	start := time.Now()
+	status, body, err := s.doRequest(host.Host)
+	elapsed := time.Since(start)
+
 	if err != nil {
 		slog.Error("host check request failed",
-			"host", host.Name,
-			"url", host.URL,
+			"host", host.Host.Name,
+			"url", host.Host.URL,
 			"error", err,
 		)
 	}
 
-	s.handleResult(host, status, body, err)
+	s.handleResult(host.Host, status, body, err)
+	s.recordEvent(host, status, body, err, elapsed)
+}
+
+func (s *Scheduler) recordEvent(host ScheduledHost, status int, body string, err error, elapsed time.Duration) {
+	if s.store == nil {
+		return
+	}
+
+	responseTimeMs := int(elapsed.Milliseconds())
+	success := status == http.StatusOK && err == nil
+	var errorMessage string
+	if err != nil {
+		errorMessage = err.Error()
+	}
+
+	bodySnippet := truncate(body, 1000)
+	// Wrap in a short timeout so a slow DB cannot block the next check.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if storeErr := s.store.CreateEvent(ctx, host.ID, 1, responseTimeMs, status, success, errorMessage, bodySnippet); storeErr != nil {
+		slog.Error("failed to store check event",
+			"host", host.Host.Name,
+			"url", host.Host.URL,
+			"error", storeErr,
+		)
+	}
 }
 
 func (s *Scheduler) handleResult(host models.Host, status int, body string, err error) {

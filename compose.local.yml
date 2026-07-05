@@ -1,0 +1,12 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: signal
+      POSTGRES_PASSWORD: signal
+      POSTGRES_DB: signal
+    volumes:
+      - ./local/db:/var/lib/postgresql/data
+    ports:
+      - 5602:5432

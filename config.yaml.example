@@ -1,6 +1,9 @@
 server:
   address: ":8080"
 
+database:
+  url: "postgres://signal:signal@localhost:5432/signal?sslmode=disable"
+
 scheduler:
   hosts_file: "hosts.yml"
 

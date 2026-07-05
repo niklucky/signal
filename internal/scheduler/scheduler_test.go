@@ -38,7 +38,7 @@ hosts:
 		t.Fatalf("expected 2 hosts, got %d", len(hosts))
 	}
 
-	first := hosts[0]
+	first := hosts[0].Host
 	if first.Name != "test-api" {
 		t.Errorf("expected name test-api, got %s", first.Name)
 	}
@@ -64,7 +64,7 @@ hosts:
 		t.Errorf("expected resend_interval 30, got %d", first.ResendInterval)
 	}
 
-	second := hosts[1]
+	second := hosts[1].Host
 	if second.Method != "GET" {
 		t.Errorf("expected default method GET, got %s", second.Method)
 	}

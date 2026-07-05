@@ -11,13 +11,24 @@ via Telegram and Matrix.
    cp config.yaml.example config.yaml
    ```
 
-2. Run the server:
+2. Start Postgres (for example with Docker):
+
+   ```bash
+   docker run -d --name signal-db \
+     -e POSTGRES_USER=signal \
+     -e POSTGRES_PASSWORD=signal \
+     -e POSTGRES_DB=signal \
+     -p 5432:5432 \
+     postgres:17-alpine
+   ```
+
+3. Run the server:
 
    ```bash
    go run ./cmd/server -config config.yaml
    ```
 
-3. Point Grafana webhook notifications to:
+4. Point Grafana webhook notifications to:
 
    ```
    http://<host>:8080/webhooks/grafana
@@ -28,6 +39,7 @@ via Telegram and Matrix.
 | Section     | Field          | Description                         |
 |-------------|----------------|-------------------------------------|
 | `server`    | `address`      | HTTP listen address                 |
+| `database`  | `url`          | Postgres connection URL             |
 | `scheduler` | `hosts_file`   | Path to the hosts YAML file         |
 | `telegram`  | `enabled`      | Enable Telegram relay               |
 | `telegram` | `bot_token`    | Telegram bot token                  |
@@ -83,6 +95,8 @@ Host fields:
 | `resend_interval` | Seconds before re-sending an alert while still failing |
 
 When a check returns a non-`200` status or fails to connect, Signal sends an alert via Telegram and/or Matrix. The alert is re-sent only after `resend_interval` while the host keeps failing. Once the host returns `200`, a recovery message is sent.
+
+Every check result is stored in the configured Postgres database in the `events` table.
 
 On each incoming Grafana webhook:
 

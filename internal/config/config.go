@@ -10,9 +10,15 @@ import (
 // Config holds the application configuration.
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
+	Database  DatabaseConfig  `yaml:"database"`
 	Telegram  TelegramConfig  `yaml:"telegram"`
 	Matrix    MatrixConfig    `yaml:"matrix"`
 	Scheduler SchedulerConfig `yaml:"scheduler"`
+}
+
+// DatabaseConfig holds database connection settings.
+type DatabaseConfig struct {
+	URL string `yaml:"url"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -55,7 +61,14 @@ func Load(path string) (*Config, error) {
 	}
 
 	cfg.setDefaults()
+	cfg.applyEnv()
 	return &cfg, nil
+}
+
+func (c *Config) applyEnv() {
+	if url := os.Getenv("DATABASE_URL"); url != "" {
+		c.Database.URL = url
+	}
 }
 
 func (c *Config) setDefaults() {

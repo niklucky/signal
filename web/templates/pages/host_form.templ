@@ -1,0 +1,112 @@
+package pages
+
+import "github.com/niklucky/signal/internal/storage"
+import "github.com/niklucky/signal/web/templates/layouts"
+import "github.com/niklucky/signal/web/templates/components"
+import "fmt"
+
+templ HostForm(email string, host *storage.Host, errorMsg string) {
+	@layouts.Base("Host — Signal") {
+		@components.Nav(email)
+		<main class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+			if host == nil {
+				<h1 class="text-2xl font-semibold text-gray-900">Add host</h1>
+			} else {
+				<h1 class="text-2xl font-semibold text-gray-900">Edit host</h1>
+			}
+			@components.Alert(errorMsg, "error")
+			<form method="post" class="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
+				<div>
+					<label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+					<input type="text" name="name" id="name" required value={ field(host, "Name") } class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+				</div>
+				<div class="grid grid-cols-2 gap-4">
+					<div>
+						<label for="method" class="block text-sm font-medium text-gray-700">Method</label>
+						<select name="method" id="method" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+							<option value="GET" selected?={ field(host, "Method") == "GET" }>GET</option>
+							<option value="POST" selected?={ field(host, "Method") == "POST" }>POST</option>
+							<option value="PUT" selected?={ field(host, "Method") == "PUT" }>PUT</option>
+							<option value="DELETE" selected?={ field(host, "Method") == "DELETE" }>DELETE</option>
+						</select>
+					</div>
+					<div>
+						<label for="url" class="block text-sm font-medium text-gray-700">URL</label>
+						<input type="url" name="url" id="url" required value={ field(host, "URL") } class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+					</div>
+				</div>
+				<div class="grid grid-cols-3 gap-4">
+					<div>
+						<label for="timeout" class="block text-sm font-medium text-gray-700">Timeout (s)</label>
+						<input type="number" name="timeout" id="timeout" value={ fmt.Sprintf("%d", intField(host, "TimeoutSec", 10)) } class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+					</div>
+					<div>
+						<label for="interval" class="block text-sm font-medium text-gray-700">Interval (s)</label>
+						<input type="number" name="interval" id="interval" value={ fmt.Sprintf("%d", intField(host, "IntervalSec", 60)) } class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+					</div>
+					<div>
+						<label for="resend_interval" class="block text-sm font-medium text-gray-700">Resend interval (s)</label>
+						<input type="number" name="resend_interval" id="resend_interval" value={ fmt.Sprintf("%d", intField(host, "ResendIntervalSec", 0)) } class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+					</div>
+				</div>
+				<div>
+					<label for="body" class="block text-sm font-medium text-gray-700">Body</label>
+					<textarea name="body" id="body" rows="4" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-sm">{ field(host, "Body") }</textarea>
+				</div>
+				<div class="flex items-center gap-2">
+					<input type="checkbox" name="active" id="active" checked?={ host == nil || host.Active } class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+					<label for="active" class="text-sm font-medium text-gray-700">Active</label>
+				</div>
+				<div class="flex items-center justify-between pt-4">
+					if host != nil {
+						<button type="submit" formaction={ templ.SafeURL(fmt.Sprintf("/hosts/%d/delete", host.ID)) } formmethod="post" class="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Delete</button>
+					} else {
+						<span></span>
+					}
+					<div class="flex gap-3">
+						<a href="/hosts" class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
+						<button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Save</button>
+					</div>
+				</div>
+			</form>
+		</main>
+	}
+}
+
+func field(host *storage.Host, name string) string {
+	if host == nil {
+		return ""
+	}
+	switch name {
+	case "Name":
+		return host.Name
+	case "Method":
+		return host.Method
+	case "URL":
+		return host.URL
+	case "Body":
+		return host.Body
+	}
+	return ""
+}
+
+func intField(host *storage.Host, name string, def int) int {
+	if host == nil {
+		return def
+	}
+	switch name {
+	case "TimeoutSec":
+		if host.TimeoutSec == 0 {
+			return def
+		}
+		return host.TimeoutSec
+	case "IntervalSec":
+		if host.IntervalSec == 0 {
+			return def
+		}
+		return host.IntervalSec
+	case "ResendIntervalSec":
+		return host.ResendIntervalSec
+	}
+	return def
+}

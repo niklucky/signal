@@ -1,0 +1,41 @@
+package components
+
+templ Nav(email string) {
+	<nav class="bg-white border-b border-gray-200">
+		<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="flex justify-between h-14">
+				<div class="flex items-center gap-6">
+					<a href="/" class="font-semibold text-lg text-indigo-600">Signal</a>
+					<a href="/dashboard" class="text-sm text-gray-600 hover:text-gray-900">Dashboard</a>
+					<a href="/hosts" class="text-sm text-gray-600 hover:text-gray-900">Hosts</a>
+					<a href="/messaging" class="text-sm text-gray-600 hover:text-gray-900">Messaging</a>
+				</div>
+				<div class="flex items-center gap-4">
+					<a href="/profile" class="text-sm text-gray-600 hover:text-gray-900">{ email }</a>
+					<form action="/logout" method="post" class="inline">
+						<button type="submit" class="text-sm text-gray-600 hover:text-gray-900">Log out</button>
+					</form>
+				</div>
+			</div>
+		</div>
+	</nav>
+}
+
+templ GuestNav() {
+	<nav class="bg-white border-b border-gray-200">
+		<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="flex justify-between h-14 items-center">
+				<a href="/" class="font-semibold text-lg text-indigo-600">Signal</a>
+				<a href="/login" class="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-md">Sign in</a>
+			</div>
+		</div>
+	</nav>
+}
+
+templ Alert(message string, kind string) {
+	if message != "" {
+		<div class={ "rounded-md p-4 mb-4", templ.KV("bg-green-50 text-green-800", kind == "success"), templ.KV("bg-red-50 text-red-800", kind == "error"), templ.KV("bg-blue-50 text-blue-800", kind == "info") }>
+			<p class="text-sm">{ message }</p>
+		</div>
+	}
+}

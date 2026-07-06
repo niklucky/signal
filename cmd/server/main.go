@@ -17,6 +17,7 @@ import (
 	"github.com/niklucky/signal/internal/notifier"
 	"github.com/niklucky/signal/internal/scheduler"
 	"github.com/niklucky/signal/internal/storage"
+	"github.com/niklucky/signal/internal/web"
 )
 
 func main() {
@@ -54,6 +55,13 @@ func main() {
 	}
 
 	http.Handle("/webhooks/grafana", handlers.NewWebhook(cfg, telegram, matrix))
+	if store != nil {
+		if err := ensureDefaultUser(store); err != nil {
+			slog.Error("failed to ensure default user", "error", err)
+			os.Exit(1)
+		}
+	}
+	web.RegisterRoutes(cfg, *configPath, store)
 
 	hosts, err := loadSchedulerHosts(cfg, store)
 	if err != nil {
@@ -89,10 +97,26 @@ func main() {
 	}
 }
 
+// ensureDefaultUser creates the default admin user if it does not exist.
+func ensureDefaultUser(store *storage.Storage) error {
+	const defaultEmail = "default@signal.local"
+	ctx := context.Background()
+	_, err := store.GetUserByEmail(ctx, defaultEmail)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("lookup default user: %w", err)
+	}
+	if _, err := store.CreateUser(ctx, defaultEmail, "", "admin"); err != nil {
+		return fmt.Errorf("create default user: %w", err)
+	}
+	return nil
+}
+
 // loadSchedulerHosts loads hosts from the configured file.
-// If a database is configured, it ensures a default user exists, syncs the
-// file-based hosts into the database, and returns the hosts from the database
-// so that events are recorded with real host IDs.
+// If a database is configured, it syncs the file-based hosts into the database
+// and returns the hosts from the database so that events are recorded with real host IDs.
 func loadSchedulerHosts(cfg *config.Config, store *storage.Storage) ([]scheduler.ScheduledHost, error) {
 	hosts, err := scheduler.LoadHosts(cfg.Scheduler.HostsFile)
 	if err != nil {
@@ -104,19 +128,9 @@ func loadSchedulerHosts(cfg *config.Config, store *storage.Storage) ([]scheduler
 	}
 
 	ctx := context.Background()
-
-	// Ensure a default user exists for file-based hosts until auth is implemented.
-	const defaultEmail = "default@signal.local"
 	user, err := store.GetUserByEmail(ctx, defaultEmail)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("lookup default user: %w", err)
-		}
-		id, createErr := store.CreateUser(ctx, defaultEmail, "", "admin")
-		if createErr != nil {
-			return nil, fmt.Errorf("create default user: %w", createErr)
-		}
-		user = &storage.User{ID: id, Email: defaultEmail, Role: "admin"}
+		return nil, fmt.Errorf("load default user: %w", err)
 	}
 
 	for i := range hosts {
@@ -150,6 +164,8 @@ func loadSchedulerHosts(cfg *config.Config, store *storage.Storage) ([]scheduler
 	}
 	return scheduled, nil
 }
+
+const defaultEmail = "default@signal.local"
 
 func setupLogging() {
 	level := slog.LevelInfo

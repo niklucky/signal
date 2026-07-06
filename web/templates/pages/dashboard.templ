@@ -1,0 +1,20 @@
+package pages
+
+import "github.com/niklucky/signal/web/templates/layouts"
+import "github.com/niklucky/signal/web/templates/components"
+
+templ Dashboard(email, info, success string) {
+	@layouts.Base("Dashboard — Signal") {
+		@components.Nav(email)
+		<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+			<h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
+			@components.Alert(success, "success")
+			@components.Alert(info, "info")
+			<div id="dashboard-charts" class="mt-6 space-y-8">
+				<p class="text-sm text-gray-500">Loading charts...</p>
+			</div>
+			<script src="/static/js/charts.js"></script>
+			<script>dashboardCharts('/api/dashboard')</script>
+		</main>
+	}
+}

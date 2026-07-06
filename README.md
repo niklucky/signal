@@ -1,7 +1,8 @@
 # Signal
 
 A lightweight Go service that receives Grafana webhook alerts and relays them
-via Telegram and Matrix.
+via Telegram and Matrix. It now also includes a simple web UI for managing
+hosts, messaging settings, and your account.
 
 ## Quick start
 
@@ -22,13 +23,26 @@ via Telegram and Matrix.
      postgres:17-alpine
    ```
 
-3. Run the server:
+3. Build the UI assets and the server:
 
    ```bash
-   go run ./cmd/server -config config.yaml
+   make build
    ```
 
-4. Point Grafana webhook notifications to:
+   This downloads `templ` and `tailwindcss` into `bin/`, generates Go code from
+   `*.templ` files, builds `web/static/css/main.css`, and compiles the `signal`
+   binary.
+
+4. Run the server:
+
+   ```bash
+   ./signal -config config.yaml
+   ```
+
+5. Open the UI at `http://localhost:8080` and sign in with the default user
+   (`default@signal.local`). You will be asked to set a password on first login.
+
+6. Point Grafana webhook notifications to:
 
    ```
    http://<host>:8080/webhooks/grafana
@@ -50,6 +64,38 @@ via Telegram and Matrix.
 | `matrix`   | `user_id`      | Bot user ID                         |
 | `matrix`   | `access_token` | Bot access token                    |
 | `matrix`   | `room_id`      | Target room ID                      |
+
+## Web UI
+
+The web UI is built with [templ](https://templ.guide/) (typed Go templates),
+[Tailwind CSS](https://tailwindcss.com/), and [htmx](https://htmx.org/). Static
+assets are served from `web/static/`; `templ` components are compiled into the
+binary.
+
+Useful commands:
+
+```bash
+make deps       # install templ and tailwindcss CLIs
+make templ      # generate Go code from *.templ files
+make css        # build web/static/css/main.css
+make build      # generate assets and compile the binary
+make dev        # build assets and run the server
+```
+
+For production, set `SESSION_SECRET` to a strong random value:
+
+```bash
+SESSION_SECRET=$(openssl rand -hex 32) ./signal -config config.yaml
+```
+
+Screens:
+
+- `/` — home with sign-in link
+- `/login` — sign in
+- `/dashboard` — response-time charts and host status
+- `/hosts` — list, add, edit, and delete monitored hosts
+- `/messaging` — edit Telegram/Matrix config (writes `config.yaml`; restart required)
+- `/profile` — change email and password
 
 ## What it does
 

@@ -1,0 +1,19 @@
+package pages
+
+import "github.com/niklucky/signal/web/templates/layouts"
+import "github.com/niklucky/signal/web/templates/components"
+
+templ Home() {
+	@layouts.Base("Signal") {
+		@components.GuestNav()
+		<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+			<div class="text-center">
+				<h1 class="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">Signal</h1>
+				<p class="mt-4 text-lg text-gray-600">Lightweight Grafana webhook relay and host monitoring.</p>
+				<div class="mt-8">
+					<a href="/login" class="inline-flex items-center rounded-md bg-indigo-600 px-5 py-3 text-base font-semibold text-white hover:bg-indigo-700">Sign in</a>
+				</div>
+			</div>
+		</main>
+	}
+}

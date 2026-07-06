@@ -317,7 +317,47 @@ type Event struct {
 	BodySnippet    string
 }
 
-// DashboardData returns aggregated recent metrics for all hosts of a user.
+// HostHourlyAvg represents an average response time for a single hour.
+type HostHourlyAvg struct {
+	Timestamp      int64 `json:"ts"`
+	ResponseTimeMs int   `json:"response_time_ms"`
+	SuccessCount   int   `json:"success_count"`
+	FailureCount   int   `json:"failure_count"`
+}
+
+// HostHourlySeries returns hourly average response times and success/failure
+// counts for a host over a window.
+func (s *Storage) HostHourlySeries(ctx context.Context, hostID int64, window string) ([]HostHourlyAvg, error) {
+	query := `
+		SELECT
+			EXTRACT(EPOCH FROM date_trunc('hour', ts))::bigint as ts,
+			AVG(response_time_ms)::int as avg_response_time_ms,
+			COUNT(*) FILTER (WHERE success = true) as success_count,
+			COUNT(*) FILTER (WHERE success = false) as failure_count
+		FROM events
+		WHERE host_id = $1 AND ts > NOW() - $2::interval
+		GROUP BY date_trunc('hour', ts)
+		ORDER BY ts ASC
+	`
+	rows, err := s.db.QueryContext(ctx, query, hostID, window)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []HostHourlyAvg
+	for rows.Next() {
+		var p HostHourlyAvg
+		if err := rows.Scan(&p.Timestamp, &p.ResponseTimeMs, &p.SuccessCount, &p.FailureCount); err != nil {
+			return nil, err
+		}
+		points = append(points, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return points, nil
+}
 func (s *Storage) DashboardData(ctx context.Context, userID int64) ([]DashboardHost, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT h.id, h.name, h.url, h.active,

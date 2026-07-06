@@ -20,4 +20,5 @@ type Store interface {
 	DeleteHost(ctx context.Context, id int64) error
 	DashboardData(ctx context.Context, userID int64) ([]storage.DashboardHost, error)
 	HostTimeSeries(ctx context.Context, hostID int64, window string) ([]storage.TimePoint, error)
+	HostHourlySeries(ctx context.Context, hostID int64, window string) ([]storage.HostHourlyAvg, error)
 }

@@ -8,13 +8,24 @@ import "fmt"
 templ HostForm(email string, host *storage.Host, errorMsg string) {
 	@layouts.Base("Host — Signal") {
 		@components.Nav(email)
-		<main class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 			if host == nil {
 				<h1 class="text-2xl font-semibold text-gray-900">Add host</h1>
 			} else {
 				<h1 class="text-2xl font-semibold text-gray-900">Edit host</h1>
 			}
 			@components.Alert(errorMsg, "error")
+			if host != nil {
+				<div class="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+					<h2 class="text-lg font-medium text-gray-900 mb-3">Response time (24h)</h2>
+					<div id="host-chart" class="w-full" data-api={ fmt.Sprintf("/api/hosts/%d/data", host.ID) }></div>
+				</div>
+				<script src="/static/js/charts.js"></script>
+				<script>
+					const chartEl = document.getElementById('host-chart');
+					hostChart(chartEl.dataset.api, 'host-chart');
+				</script>
+			}
 			<form method="post" class="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
 				<div>
 					<label for="name" class="block text-sm font-medium text-gray-700">Name</label>

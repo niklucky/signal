@@ -119,6 +119,10 @@ func (m *mockStore) HostTimeSeries(_ context.Context, _ int64, _ string) ([]stor
 	return nil, nil
 }
 
+func (m *mockStore) HostHourlySeries(_ context.Context, _ int64, _ string) ([]storage.HostHourlyAvg, error) {
+	return nil, nil
+}
+
 func sqlErrNoRows() error {
 	return &noRowsError{}
 }

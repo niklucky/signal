@@ -1,18 +1,65 @@
 package pages
 
+import "github.com/niklucky/signal/internal/storage"
 import "github.com/niklucky/signal/web/templates/layouts"
 import "github.com/niklucky/signal/web/templates/components"
+import "fmt"
 
-templ Dashboard(email, info, success string) {
+templ Dashboard(email, info, success string, hosts []storage.Host) {
 	@layouts.Base("Dashboard — Signal") {
 		@components.Nav(email)
-		<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 			<h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
 			@components.Alert(success, "success")
 			@components.Alert(info, "info")
-			<div id="dashboard-charts" class="mt-6 space-y-8">
-				<p class="text-sm text-gray-500">Loading charts...</p>
-			</div>
+			if len(hosts) == 0 {
+				<p class="p-6 text-sm text-gray-500">
+					No hosts configured yet. <a href="/hosts/new" class="text-indigo-600 hover:text-indigo-900">Add a host</a>.
+				</p>
+			} else {
+				<div class="mt-6 overflow-x-auto">
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" style="min-width: 900px;">
+						<table class="w-full divide-y divide-gray-200 table-fixed">
+							<colgroup>
+								<col class="w-16"/>
+								<col class="w-40"/>
+								<col/>
+								<col class="w-28"/>
+								<col class="w-56"/>
+								<col class="w-36"/>
+							</colgroup>
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check every</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SLA</th>
+									<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg response</th>
+								</tr>
+							</thead>
+							<tbody class="bg-white divide-y divide-gray-200">
+								for _, h := range hosts {
+									<tr data-host-id={ fmt.Sprintf("%d", h.ID) } data-interval={ fmt.Sprintf("%d", h.IntervalSec) }>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{ fmt.Sprintf("%d", h.ID) }</td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
+											<a href={ templ.SafeURL(fmt.Sprintf("/hosts/%d", h.ID)) } class="text-indigo-600 hover:text-indigo-900">{ h.Name }</a>
+										</td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 truncate">{ h.URL }</td>
+										<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{ fmt.Sprintf("%ds", h.IntervalSec) }</td>
+										<td class="px-4 py-3 whitespace-nowrap sla-cell overflow-hidden">
+											<span class="text-sm text-gray-400 flex-shrink-0">—</span>
+										</td>
+										<td class="px-4 py-3 whitespace-nowrap rt-cell overflow-hidden">
+											<span class="text-sm text-gray-400 flex-shrink-0">—</span>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			}
 			<script src="/static/js/charts.js"></script>
 			<script>dashboardCharts('/api/dashboard')</script>
 		</main>

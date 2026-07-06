@@ -35,6 +35,7 @@ func RegisterRoutes(cfg *config.Config, cfgPath string, store Store) {
 
 	http.Handle("/dashboard", auth(h.Dashboard))
 	http.Handle("/api/dashboard", auth(h.DashboardData))
+	http.Handle("/api/hosts/{id}/data", auth(h.HostChartData))
 	http.Handle("/hosts", auth(h.Hosts))
 	http.Handle("/hosts/new", auth(h.HostForm))
 	http.Handle("/hosts/{id}", auth(func(w http.ResponseWriter, r *http.Request) {

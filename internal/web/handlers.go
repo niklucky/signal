@@ -101,10 +101,21 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	user := CurrentUser(r)
 	info := GetFlashString(w, r, "info")
 	success := GetFlashString(w, r, "success")
-	render(w, r, http.StatusOK, pages.Dashboard(user.Email, info, success))
+
+	var hosts []storage.Host
+	if h.store != nil {
+		var err error
+		hosts, err = h.store.GetHostsByUser(r.Context(), user.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	render(w, r, http.StatusOK, pages.Dashboard(user.Email, info, success, hosts))
 }
 
-// DashboardData returns JSON data for charts.
+// DashboardData returns JSON data for the dashboard table.
 func (h *Handler) DashboardData(w http.ResponseWriter, r *http.Request) {
 	user := CurrentUser(r)
 	if h.store == nil {
@@ -112,42 +123,72 @@ func (h *Handler) DashboardData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hosts, err := h.store.DashboardData(r.Context(), user.ID)
+	hosts, err := h.store.GetHostsByUser(r.Context(), user.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	type series struct {
-		HostID   int64                `json:"host_id"`
-		Name     string               `json:"name"`
-		URL      string               `json:"url"`
-		Active   bool                 `json:"active"`
-		Points   []storage.TimePoint  `json:"points"`
-		Success  int                  `json:"successes_24h"`
-		Failures int                  `json:"failures_24h"`
+		HostID      int64                  `json:"host_id"`
+		IntervalSec int                    `json:"interval_sec"`
+		Hours       []storage.HostHourlyAvg `json:"hours"`
 	}
 
 	result := make([]series, 0, len(hosts))
 	for _, host := range hosts {
-		points, err := h.store.HostTimeSeries(r.Context(), host.ID, "24 hours")
+		hours, err := h.store.HostHourlySeries(r.Context(), host.ID, "30 days")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		result = append(result, series{
-			HostID:   host.ID,
-			Name:     host.Name,
-			URL:      host.URL,
-			Active:   host.Active,
-			Points:   points,
-			Success:  host.Successes24h,
-			Failures: host.Failures24h,
+			HostID:      host.ID,
+			IntervalSec: host.IntervalSec,
+			Hours:       hours,
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// HostChartData returns JSON time-series data for a single host chart.
+func (h *Handler) HostChartData(w http.ResponseWriter, r *http.Request) {
+	user := CurrentUser(r)
+	if h.store == nil {
+		http.Error(w, "database not configured", http.StatusInternalServerError)
+		return
+	}
+
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	host, err := h.store.GetHostByID(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if host.UserID != user.ID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	points, err := h.store.HostTimeSeries(r.Context(), id, "24 hours")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"host_id": id,
+		"points":  points,
+	})
 }
 
 // Hosts shows the host list.

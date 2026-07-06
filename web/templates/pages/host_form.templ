@@ -4,6 +4,7 @@ import "github.com/niklucky/signal/internal/storage"
 import "github.com/niklucky/signal/web/templates/layouts"
 import "github.com/niklucky/signal/web/templates/components"
 import "fmt"
+import "sort"
 
 templ HostForm(email string, host *storage.Host, errorMsg string) {
 	@layouts.Base("Host — Signal") {
@@ -64,6 +65,30 @@ templ HostForm(email string, host *storage.Host, errorMsg string) {
 					<label for="body" class="block text-sm font-medium text-gray-700">Body</label>
 					<textarea name="body" id="body" rows="4" class="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-sm">{ field(host, "Body") }</textarea>
 				</div>
+				<div>
+					<label class="block text-sm font-medium text-gray-700 mb-1">Headers</label>
+					<div id="headers-container" class="space-y-2">
+						for _, h := range headersList(host) {
+							<div class="header-row flex gap-2">
+								<input type="text" name="header_key[]" placeholder="Header name" value={ h.Key } class="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+								<input type="text" name="header_value[]" placeholder="Value" value={ h.Value } class="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>
+								<button type="button" onclick="this.closest('.header-row').remove()" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Remove</button>
+							</div>
+						}
+					</div>
+					<button type="button" id="add-header" class="mt-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Add header</button>
+					<script>
+						document.getElementById('add-header').addEventListener('click', function() {
+							const container = document.getElementById('headers-container');
+							const row = document.createElement('div');
+							row.className = 'header-row flex gap-2';
+							row.innerHTML = '<input type="text" name="header_key[]" placeholder="Header name" class="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>' +
+								'<input type="text" name="header_value[]" placeholder="Value" class="flex-1 rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"/>' +
+								'<button type="button" onclick="this.closest(\'.header-row\').remove()" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Remove</button>';
+							container.appendChild(row);
+						});
+					</script>
+				</div>
 				<div class="flex items-center gap-2">
 					<input type="checkbox" name="active" id="active" checked?={ host == nil || host.Active } class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
 					<label for="active" class="text-sm font-medium text-gray-700">Active</label>
@@ -120,4 +145,21 @@ func intField(host *storage.Host, name string, def int) int {
 		return host.ResendIntervalSec
 	}
 	return def
+}
+
+type headerKV struct {
+	Key   string
+	Value string
+}
+
+func headersList(host *storage.Host) []headerKV {
+	if host == nil || len(host.Headers) == 0 {
+		return nil
+	}
+	var list []headerKV
+	for k, v := range host.Headers {
+		list = append(list, headerKV{Key: k, Value: v})
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].Key < list[j].Key })
+	return list
 }

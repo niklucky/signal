@@ -86,6 +86,7 @@ func (m *mockStore) CreateHost(_ context.Context, userID int64, host models.Host
 		Name:        host.Name,
 		Method:      host.Method,
 		URL:         host.URL,
+		Headers:     host.Headers,
 		Body:        host.Body,
 		TimeoutSec:  host.Timeout,
 		IntervalSec: host.Interval,
@@ -98,6 +99,7 @@ func (m *mockStore) UpdateHost(_ context.Context, id int64, host models.Host, _ 
 		h.Name = host.Name
 		h.Method = host.Method
 		h.URL = host.URL
+		h.Headers = host.Headers
 		h.Body = host.Body
 		h.TimeoutSec = host.Timeout
 		h.IntervalSec = host.Interval
@@ -314,5 +316,52 @@ func TestSaveProfile(t *testing.T) {
 	}
 	if store.users[1].PasswordHash == "" {
 		t.Fatalf("expected password to be set")
+	}
+}
+
+func TestSaveHostWithHeaders(t *testing.T) {
+	h, store := setupTestHandler(t)
+	store.users[1] = &storage.User{ID: 1, Email: "user@example.com", Role: "admin"}
+
+	form := url.Values{}
+	form.Set("name", "api")
+	form.Set("method", "POST")
+	form.Set("url", "https://example.com/api")
+	form.Set("body", `{"ok":true}`)
+	form.Set("timeout", "5")
+	form.Set("interval", "30")
+	form.Add("header_key", "Authorization")
+	form.Add("header_value", "Bearer token")
+	form.Add("header_key", "X-Custom")
+	form.Add("header_value", "value")
+	form.Add("header_key", "")
+	form.Add("header_value", "ignored")
+
+	req := httptest.NewRequest(http.MethodPost, "/hosts/new", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(context.WithValue(req.Context(), userContextKey, store.users[1]))
+	rec := httptest.NewRecorder()
+	h.SaveHost(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if loc != "/hosts" {
+		t.Fatalf("expected redirect to /hosts, got %s", loc)
+	}
+
+	created := store.hosts[1]
+	if created == nil {
+		t.Fatalf("expected host to be created")
+	}
+	if len(created.Headers) != 2 {
+		t.Fatalf("expected 2 headers, got %d", len(created.Headers))
+	}
+	if created.Headers["Authorization"] != "Bearer token" {
+		t.Fatalf("unexpected authorization header: %q", created.Headers["Authorization"])
+	}
+	if created.Headers["X-Custom"] != "value" {
+		t.Fatalf("unexpected custom header: %q", created.Headers["X-Custom"])
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -250,6 +251,7 @@ func (h *Handler) SaveHost(w http.ResponseWriter, r *http.Request) {
 		Timeout:        parseInt(r.FormValue("timeout"), 10),
 		Interval:       parseInt(r.FormValue("interval"), 60),
 		ResendInterval: parseInt(r.FormValue("resend_interval"), 0),
+		Headers:        parseHeaders(r.Form),
 	}
 	if host.Method == "" {
 		host.Method = "GET"
@@ -419,6 +421,30 @@ func parseInt(s string, def int) int {
 		return def
 	}
 	return v
+}
+
+func parseHeaders(form map[string][]string) map[string]string {
+	keys := form["header_key"]
+	values := form["header_value"]
+	if len(keys) == 0 {
+		return nil
+	}
+
+	headers := make(map[string]string)
+	for i := range keys {
+		if i >= len(values) {
+			break
+		}
+		key := strings.TrimSpace(keys[i])
+		if key == "" {
+			continue
+		}
+		headers[key] = values[i]
+	}
+	if len(headers) == 0 {
+		return nil
+	}
+	return headers
 }
 
 // StaticFileServer returns a handler for static assets.

@@ -4,6 +4,30 @@ A lightweight Go service that receives Grafana webhook alerts and relays them
 via Telegram and Matrix. It now also includes a simple web UI for managing
 hosts, messaging settings, and your account.
 
+## Run with Docker
+
+The `Dockerfile` builds everything (templ code, Tailwind CSS, Go binary) into a
+minimal image — the static assets are embedded in the binary, so the container
+needs no files besides a config.
+
+```bash
+cp config.yaml.example config.yaml   # fill in your credentials
+DB_PASSWORD=secret SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
+```
+
+`compose.yml` starts Postgres and the app on port `8080`. The database
+connection is injected via `DATABASE_URL`, so `config.yaml` only needs the
+server, Telegram/Matrix, and scheduler sections. Postgres data lives in the
+`db-data` volume; `config.yaml` and `hosts.yml` are bind-mounted from the
+working directory.
+
+To build the image without compose:
+
+```bash
+docker build -t signal .
+docker run -p 8080:8080 -v "$PWD/config.yaml:/etc/signal/config.yaml" signal
+```
+
 ## Quick start
 
 1. Copy the example config and fill in your credentials:
@@ -69,8 +93,8 @@ hosts, messaging settings, and your account.
 
 The web UI is built with [templ](https://templ.guide/) (typed Go templates),
 [Tailwind CSS](https://tailwindcss.com/), and [htmx](https://htmx.org/). Static
-assets are served from `web/static/`; `templ` components are compiled into the
-binary.
+assets from `web/static/` are embedded into the binary at build time, just like
+the compiled `templ` components.
 
 Useful commands:
 

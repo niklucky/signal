@@ -1,0 +1,12 @@
+.git
+bin
+dist
+local
+signal
+server
+config.yaml
+hosts.yml
+*.log
+Dockerfile
+.dockerignore
+compose*.yml

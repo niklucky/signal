@@ -1,4 +1,4 @@
-.PHONY: all build dev css css-watch templ templ-watch test deps clean
+.PHONY: all build dev css css-watch templ templ-watch test deps clean docker
 
 BINARY := signal
 BIN_DIR := bin
@@ -47,6 +47,9 @@ build: deps
 
 test:
 	go test ./...
+
+docker:
+	docker build -t signal .
 
 clean:
 	rm -f $(BINARY) web/static/css/main.css

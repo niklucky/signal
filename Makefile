@@ -18,7 +18,7 @@ $(TEMPL_BIN): | $(BIN_DIR)
 	cp $(shell go env GOPATH)/bin/templ $(TEMPL_BIN)
 
 $(TAILWIND_BIN): | $(BIN_DIR)
-	curl -sL "https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-$(subst darwin,macos,$(GOOS))-$(GOARCH)" -o $(TAILWIND_BIN)
+	curl -sL "https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)/tailwindcss-$(subst darwin,macos,$(GOOS))-$(subst amd64,x64,$(GOARCH))" -o $(TAILWIND_BIN)
 	chmod +x $(TAILWIND_BIN)
 
 deps: $(TEMPL_BIN) $(TAILWIND_BIN)

@@ -8,20 +8,25 @@ hosts, messaging settings, and your account.
 
 The `Dockerfile` builds everything (templ code, Tailwind CSS, Go binary) into a
 minimal image — the static assets are embedded in the binary, so the container
-needs no files besides a config.
+needs no files besides a config. CI publishes the image to
+`ghcr.io/niklucky/signal` (`latest` for releases, `edge` for the main branch).
 
 ```bash
 cp config.yaml.example config.yaml   # fill in your credentials
-DB_PASSWORD=secret SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
+DB_PASSWORD=secret SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d
 ```
 
-`compose.yml` starts Postgres and the app on port `8080`. The database
-connection is injected via `DATABASE_URL`, so `config.yaml` only needs the
-server, Telegram/Matrix, and scheduler sections. Postgres data lives in the
-`db-data` volume; `config.yaml` and `hosts.yml` are bind-mounted from the
-working directory.
+`compose.yml` pulls the pre-built image from GHCR and starts Postgres and the
+app on port `8080`. The database connection is injected via `DATABASE_URL`, so
+`config.yaml` only needs the server, Telegram/Matrix, and scheduler sections.
+Postgres data lives in the `db-data` volume; `config.yaml` is bind-mounted from
+the working directory. `hosts.yml` is optional — place it next to
+`compose.yml` and add a volume mount for it if you use the host scheduler.
+Use `docker compose pull && docker
+compose up -d` to update to a newer image. For staging, switch the image tag to
+`edge` to track the main branch.
 
-To build the image without compose:
+To build the image yourself instead:
 
 ```bash
 docker build -t signal .

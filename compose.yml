@@ -15,8 +15,7 @@ services:
       retries: 12
 
   signal:
-    build: .
-    image: signal:latest
+    image: ghcr.io/niklucky/signal:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -25,7 +24,6 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
     volumes:
       - ./config.yaml:/etc/signal/config.yaml
-      - ./hosts.yml:/etc/signal/hosts.yml
     depends_on:
       db:
         condition: service_healthy

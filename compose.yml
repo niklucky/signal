@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: signal
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: signal
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signal -d signal"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  signal:
+    image: ${SIGNAL_IMAGE:-ghcr.io/niklucky/signal:latest}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # DB_PASSWORD is interpolated into DATABASE_URL verbatim — URL-encode it
+      # (or avoid the characters) if it contains @ : / ? or #.
+      DATABASE_URL: postgres://signal:${DB_PASSWORD}@db:5432/signal?sslmode=disable
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+    volumes:
+      - ./config.yaml:/etc/signal/config.yaml
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

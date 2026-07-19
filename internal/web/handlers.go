@@ -13,6 +13,7 @@ import (
 	"github.com/niklucky/signal/internal/config"
 	"github.com/niklucky/signal/internal/models"
 	"github.com/niklucky/signal/internal/storage"
+	"github.com/niklucky/signal/web/static"
 	"github.com/niklucky/signal/web/templates/pages"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
@@ -447,9 +448,9 @@ func parseHeaders(form map[string][]string) map[string]string {
 	return headers
 }
 
-// StaticFileServer returns a handler for static assets.
+// StaticFileServer returns a handler for static assets embedded in the binary.
 func StaticFileServer() http.Handler {
-	return http.StripPrefix("/static/", http.FileServer(http.Dir("web/static")))
+	return http.StripPrefix("/static/", http.FileServer(http.FS(static.FS)))
 }
 
 // init sets the default time zone for display.

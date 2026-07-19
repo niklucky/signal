@@ -15,11 +15,13 @@ services:
       retries: 12
 
   signal:
-    image: ghcr.io/niklucky/signal:latest
+    image: ${SIGNAL_IMAGE:-ghcr.io/niklucky/signal:latest}
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
+      # DB_PASSWORD is interpolated into DATABASE_URL verbatim — URL-encode it
+      # (or avoid the characters) if it contains @ : / ? or #.
       DATABASE_URL: postgres://signal:${DB_PASSWORD}@db:5432/signal?sslmode=disable
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
     volumes:

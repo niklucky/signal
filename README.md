@@ -33,6 +33,12 @@ docker build -t signal .
 docker run -p 8080:8080 -v "$PWD/config.yaml:/etc/signal/config.yaml" signal
 ```
 
+To use a locally built image with compose, override `SIGNAL_IMAGE`:
+
+```bash
+SIGNAL_IMAGE=signal:latest docker compose up -d
+```
+
 ## Quick start
 
 1. Copy the example config and fill in your credentials:

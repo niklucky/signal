@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-go@v5
         with:
@@ -49,6 +51,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: docker/setup-buildx-action@v3
 
@@ -87,8 +91,11 @@ jobs:
     env:
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      SIGNAL_IMAGE: ghcr.io/niklucky/signal:latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Write config.yaml from secret
         env:
@@ -112,7 +119,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          envs: DB_PASSWORD,SESSION_SECRET
+          envs: DB_PASSWORD,SESSION_SECRET,SIGNAL_IMAGE
           script: |
             set -e
             cd /opt/signal
